@@ -32,7 +32,7 @@ WebServer servidor(80);
 
 //DEFINES
 
-#define VERSAO "0.1.2"
+#define VERSAO "0.1.3"
 
 #define pino_leitura_piloto 34 //34 por causa do wifi
 #define pino_pwm 18
@@ -255,9 +255,20 @@ String SendHTML(int indice,int valor){
   ptr +="<tr>\n<td><a class=\"button button-on\" href=\"/maisC\">Mais</a></td>\n";
   ptr +="<td><a class=\"button button-on\" href=\"/menosC\">Menos</a></td>\n";
   ptr +="<td><a class=\"button button-off\" href=\"/memorC\">Gravar</a></td></tr>\n";
-
-
   ptr +="</table>\n";
+  
+  ptr +="<br>\n";
+  ptr +="<font size=\"4\">Controlo remoto</font>";
+  ptr +="<table style=\"width:100%\">\n  <tr>\n    <th valign=\"middle\" colspan=\"2\"><font size=\"6\"><b>";
+  if (remote==false) ptr +="Desligado";
+  if (remote==true) ptr +="Ligado";
+  ptr +="</b></font></th> \n    <th>";
+  ptr +="<a class=\"button button-off\" href=\"/refresh\">Estado</a> </th>\n  </tr>\n";
+  ptr +="<tr>\n<td><a class=\"button button-on\" href=\"/ligarremote\">Ligar</a></td>\n";
+  ptr +="<td><a class=\"button button-on\" href=\"/desligarremote\">Desligar</a></td>\n";
+  ptr +="<td><a class=\"button button-off\" href=\"/memorremote\">Gravar</a></td></tr>\n";
+  ptr +="</table>\n";
+
 
   //ptr +=String("<h3>Version ")+String(VERSAO)+String(" Beta</h3>\n");
   //ptr +=String("<p><Corrente: ")+String(amperes)+String("A</p>");
@@ -303,6 +314,25 @@ void handle_menos_corrente() {
 
   servidor.send(200, "text/html", SendHTML(2,2)); 
 }
+
+
+void handle_ligar_remote() {
+  Serial.println("Handle ligar remote");
+
+  remote = true; 
+  
+  servidor.send(200, "text/html", SendHTML(4,1)); 
+}
+
+void handle_desligar_remote() {
+  Serial.println("Handle desligar remote");
+
+  remote = false; 
+  
+  servidor.send(200, "text/html", SendHTML(4,2)); 
+}
+
+
 
 
 void handle_corrente0() {
@@ -454,8 +484,26 @@ void handle_memo_corrente() {
   EEPROM.commit();
   
   servidor.send(200, "text/html", SendHTML(2,3)); 
-  wifi_count = wifi_ciclos;
+  
 }
+
+
+void handle_memo_remote() {
+  Serial.println("Handle Memo remote");
+  
+
+  if (remote)
+        EEPROM.write(3, 1);
+               else
+                  EEPROM.write(3, 0);
+
+                      EEPROM.commit();
+
+  
+  servidor.send(200, "text/html", SendHTML(4,3)); 
+  
+}
+
 
 void handle_refresh() {
   Serial.println("Handle Refresh");
@@ -584,7 +632,7 @@ void setup()
   servidor.on("/maisC", handle_mais_corrente);
   servidor.on("/menosC", handle_menos_corrente);
   servidor.on("/refresh", handle_refresh);
-  servidor.on("/memoC", handle_memo_corrente);
+  servidor.on("/memorC", handle_memo_corrente);
   servidor.on("/0", handle_corrente0);
   servidor.on("/6", handle_corrente6);
   servidor.on("/7", handle_corrente7);
@@ -613,6 +661,9 @@ void setup()
   servidor.on("/30", handle_corrente30);
   servidor.on("/31", handle_corrente31);
   servidor.on("/32", handle_corrente32);
+  servidor.on("/ligarremote", handle_ligar_remote);
+  servidor.on("/desligarremote", handle_desligar_remote);
+  servidor.on("/memorremote", handle_memo_remote);
 
 
 
@@ -1037,8 +1088,8 @@ void loop()
         //display.drawString(4, 22, String(leitura_piloto));
 
         //                      x   y    w   h  %
-        display.drawProgressBar(0, 44, 34, 8, janelamin);
-        display.drawProgressBar(0, 53, 34, 8, janelamax);
+        //display.drawProgressBar(0, 44, 34, 8, janelamin);
+        //display.drawProgressBar(0, 53, 34, 8, janelamax);
 
         //display.drawString(64, 22, String(leitura_piloto_min3));
         //display.drawString(4, 44, String(leitura_piloto_max3));
