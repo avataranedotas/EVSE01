@@ -32,7 +32,7 @@ WebServer servidor(80);
 
 //DEFINES
 
-#define VERSAO "0.2.2"
+#define VERSAO "0.2.3"
 
 #define pino_leitura_piloto 34 //34 por causa do wifi
 #define pino_pwm 18
@@ -48,6 +48,34 @@ WebServer servidor(80);
 
 #define wifi_ciclos 20
 #define wifi_menor 10
+
+//Correcção de bug no wifi no ficheiro WiFiGeneric.cpp
+/*
+bool WiFiGenericClass::mode(wifi_mode_t m)
+{
+    wifi_mode_t cm = getMode();
+    if(cm == m) {
+        return true;
+    }
+    if(!cm && m){
+        if(!espWiFiStart(_persistent)){
+            return false;
+        }
+    } else if(cm && !m){
+        return espWiFiStop();
+    }
+    sleep(1);  // Delay between espWiFiStart() and esp_wifi_set_mode() to correct bug
+ 
+    esp_err_t err;
+    err = esp_wifi_set_mode(m);
+    if(err){
+        log_e("Could not set mode! %d", err);
+        return false;
+    }
+    return true;
+}
+*/
+
 
 
 
@@ -1051,6 +1079,9 @@ void loop()
       display.setFont(Monospaced_plain_20); //fonte w12xh24
       display.setTextAlignment(TEXT_ALIGN_LEFT);
 
+      wifi_count = wifi_count -1;
+      if (wifi_count < 0) wifi_count = 0;
+
       if (!screensaver)
       {
         display.drawString(4, 0, String(linha1));
@@ -1076,8 +1107,7 @@ void loop()
         if (wifi_count > wifi_menor)
           display.drawXbm(90, 28, wifi_width, wifi_height, wifi_bits);
         
-        wifi_count = wifi_count -1;
-        if (wifi_count < 0) wifi_count = 0;
+    
 
         if (remote)
           display.drawXbm(110, 24, remote_width, remote_height, remote_bits);
