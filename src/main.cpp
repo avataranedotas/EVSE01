@@ -32,7 +32,7 @@ WebServer servidor(80);
 
 //DEFINES
 
-#define VERSAO "0.2.1"
+#define VERSAO "0.2.2"
 
 #define pino_leitura_piloto 34 //34 por causa do wifi
 #define pino_pwm 18
@@ -614,9 +614,9 @@ void setup()
   t[4].pt = 100;   //preset time
   t[5].pt = 50;    //touch rápido
   t[6].pt = 1000;  //touch confirmação
-  t[7].pt = 240000; //screensaver
+  t[7].pt = 60000; //screensaver
   t[8].pt = 1000;  //tempo duplo clique
-  t[9].pt = 120000; //timeout menus
+  t[9].pt = 30000; //timeout menus
   t[10].pt = 2500; //timer relé
   t[11].pt = 50;   //timer desligar relé
   t[12].pt = 250;  //timer erro geral
