@@ -32,7 +32,7 @@ WebServer servidor(80);
 
 //DEFINES
 
-#define VERSAO "0.2.3"
+#define VERSAO "0.2.4"
 
 #define pino_leitura_piloto 34 //34 por causa do wifi
 #define pino_pwm 18
@@ -652,7 +652,7 @@ void setup()
   t[14].pt = 100;  //timer entrada pwm diodo
   t[15].pt = 1000; //timer arranque contadisplay
   t[16].pt = 1500; //timer para detectar falha curta de wifi
-  t[17].pt = 5000; //timer para detectar falha longa de wifi
+  t[17].pt = 10000; //timer para detectar falha longa de wifi
   t[18].pt = 2000; //ciclo estado B -12V
   t[19].pt = 2000; //estado 11
   t[20].pt = 5000; //falha no estado 11, regressa ao 0
@@ -1062,7 +1062,7 @@ void loop()
       if (t[16].q) amperes = 6;
 
 
-      //se não receber nada durante 5s desliga - t17
+      //se não receber nada durante ys desliga - t17
       if (wifi_count==0) t[17].in=true; else t[17].in=false;
       if (t[17].q) amperes = 0;
     }
@@ -1138,7 +1138,7 @@ void loop()
         display.setFont(Monospaced_plain_32); //fonte w19xh38
         display.setTextAlignment(TEXT_ALIGN_LEFT);
 
-        if ((estado != 2) & (luzes_ss))
+        if ((estado != 21) & (luzes_ss))
         {
           if (((millis() % 3000) >= 0) & ((millis() % 3000) <= 25))
           {
@@ -1149,12 +1149,12 @@ void loop()
           {
             sprintf(buffer, "%2dA", amperes);
             display.drawString(64, 12, String(buffer));
-            if ((estado != 0) & (estado != 3)) display.drawXbm(10, 23, carro_width, carro_height, carro_bits);
+            if ((estado != 0) /*& (estado != 3)*/) display.drawXbm(10, 23, carro_width, carro_height, carro_bits);
             
           }
         }
 
-        if ((estado == 2) & (luzes_ss))
+        if ((estado == 21) & (luzes_ss))
         {
           if (((millis() % 1000) >= 0) & ((millis() % 1000) <= 25))
           {
