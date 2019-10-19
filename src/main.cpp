@@ -17,6 +17,9 @@
 // Include the UI lib
 #include "OLEDDisplayUi.h"
 
+//para fazer o hard_restart
+#include <esp_int_wdt.h>
+#include <esp_task_wdt.h>
 
 // Initialize the OLED display using Wire library
 //SSD1306Wire display(0x3c, 21, 22);
@@ -32,7 +35,7 @@ WebServer servidor(80);
 
 //DEFINES
 
-#define VERSAO "0.2.4"
+#define VERSAO "0.2.5"
 
 #define pino_leitura_piloto 34 //34 por causa do wifi
 #define pino_pwm 18
@@ -579,6 +582,13 @@ void handle_NotFound(){
 }
 
 
+void hard_restart() {
+  esp_task_wdt_init(1,true);
+  esp_task_wdt_add(NULL);
+  while(true);
+}
+
+
 
 
 //***********************FIM FUNCOES******************************************
@@ -659,6 +669,7 @@ void setup()
   t[21].pt = 2000; //estado b1
   t[22].pt = 2000; //estado b2
   t[23].pt = 500; //tempo mínimo no estado 21
+  t[24].pt = 600000; //tempo ao fim do qual faz reset se não estiver a carregar
 
   EEPROM.begin(10);
 
@@ -912,6 +923,12 @@ void loop()
       sprintf(linha1, "  Pronto  ");
       t[21].in=false;
       t[22].in=false;
+      t[24].in=true;
+
+      if (t[24].q) 
+      {
+      hard_restart();
+      }
     }
 
     if (estado == 21)
