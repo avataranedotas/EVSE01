@@ -35,7 +35,7 @@ WebServer servidor(80);
 
 //DEFINES
 
-#define VERSAO "0.2.5"
+#define VERSAO "0.2.6"
 
 #define pino_leitura_piloto 34 //34 por causa do wifi
 #define pino_pwm 18
@@ -652,7 +652,7 @@ void setup()
   t[4].pt = 100;   //preset time
   t[5].pt = 50;    //touch rápido
   t[6].pt = 1000;  //touch confirmação
-  t[7].pt = 60000; //screensaver
+  t[7].pt = 120000; //screensaver
   t[8].pt = 1000;  //tempo duplo clique
   t[9].pt = 30000; //timeout menus
   t[10].pt = 2500; //timer relé
@@ -662,14 +662,14 @@ void setup()
   t[14].pt = 100;  //timer entrada pwm diodo
   t[15].pt = 1000; //timer arranque contadisplay
   t[16].pt = 1500; //timer para detectar falha curta de wifi
-  t[17].pt = 10000; //timer para detectar falha longa de wifi
+  t[17].pt = 30000; //timer para detectar falha longa de wifi
   t[18].pt = 2000; //ciclo estado B -12V
   t[19].pt = 2000; //estado 11
   t[20].pt = 5000; //falha no estado 11, regressa ao 0
   t[21].pt = 2000; //estado b1
   t[22].pt = 2000; //estado b2
   t[23].pt = 500; //tempo mínimo no estado 21
-  t[24].pt = 600000; //tempo ao fim do qual faz reset se não estiver a carregar
+  t[24].pt = 600000; //tempo ao fim do qual faz reset se não estiver a carregar e não receber comandos remotos
 
   EEPROM.begin(10);
 
@@ -923,7 +923,7 @@ void loop()
       sprintf(linha1, "  Pronto  ");
       t[21].in=false;
       t[22].in=false;
-      t[24].in=true;
+      if (t[17].q) t[24].in=true;
 
       if (t[24].q) 
       {
@@ -976,6 +976,14 @@ void loop()
       sprintf(linha1, "VE Ligado ");
       auxpwm = float(amperes) / 0.6;
       digitalWrite(pino_rele, false);
+
+      if (t[17].q) t[24].in=true; t[24].in=true;
+
+      if (t[24].q) 
+      {
+      hard_restart();
+      }
+
     }
 
     if (estado==31)  //Erro diodo
