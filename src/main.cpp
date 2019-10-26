@@ -17,10 +17,13 @@
 // Include the UI lib
 #include "OLEDDisplayUi.h"
 
+//para fazer o hard_restart
+#include <esp_int_wdt.h>
+#include <esp_task_wdt.h>
 
 // Initialize the OLED display using Wire library
-SSD1306Wire display(0x3c, 21, 22);
-//SH1106Wire display(0x3c, 21, 22); 
+//SSD1306Wire display(0x3c, 21, 22);
+SH1106Wire display(0x3c, 21, 22); 
 
 #include <TimeLib.h>
 
@@ -32,29 +35,60 @@ WebServer servidor(80);
 
 //DEFINES
 
-#define VERSAO "0.1.2"
+#define VERSAO "0.2.6"
 
 #define pino_leitura_piloto 34 //34 por causa do wifi
 #define pino_pwm 18
 #define pino_LED 2
 #define pino_rele 19
 #define canalpwm 1
-//#define bits_pwm 10
+#define bits_pwm 10
 
-#define MAX_PWM_DIODO 1200
+#define MAX_PWM_DIODO 1100
 #define MIN_PWM_A 3600
-#define MIN_PWM_B 3050
+#define MIN_PWM_B 3100
 #define MIN_PWM_C 1400
 
 #define wifi_ciclos 20
 #define wifi_menor 10
 
+//Correcção de bug no wifi no ficheiro WiFiGeneric.cpp
+/*
+bool WiFiGenericClass::mode(wifi_mode_t m)
+{
+    wifi_mode_t cm = getMode();
+    if(cm == m) {
+        return true;
+    }
+    if(!cm && m){
+        if(!espWiFiStart(_persistent)){
+            return false;
+        }
+    } else if(cm && !m){
+        return espWiFiStop();
+    }
+    sleep(1);  // Delay between espWiFiStart() and esp_wifi_set_mode() to correct bug
+ 
+    esp_err_t err;
+    err = esp_wifi_set_mode(m);
+    if(err){
+        log_e("Could not set mode! %d", err);
+        return false;
+    }
+    return true;
+}
+*/
+
+
+
+
+
 //Variaveis globais
 
 volatile int conta_interrupt, conta_fim;
 
-hw_timer_t *timerx1 = NULL;
-portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+//hw_timer_t *timerx1 = NULL;
+//portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 
 //hw_timer_t * timerx2 = NULL;
 
@@ -116,6 +150,13 @@ bool escolher_remote = false;
 bool teste_pwm_inibir_errodiodo = false;
 bool erro_diodo = false;
 int wifi_count = 0;
+bool ciclo_estadoB = false;
+bool jafezcicloB = false;
+bool condA = false;
+bool condB = false;
+bool condC = false;
+bool condD = false;
+bool condE = false;
 
 const char* ssid     = "EVSEServer";
 const char* password = "zzzzzzzz";
@@ -140,6 +181,7 @@ String output27State = "off";
 
 //***********************FUNCOES******************************************
 
+/*
 void IRAM_ATTR onTimer()
 {
   portENTER_CRITICAL_ISR(&timerMux);
@@ -152,23 +194,38 @@ void IRAM_ATTR onTimer()
     conta_interrupt = 0;
   portEXIT_CRITICAL_ISR(&timerMux);
 }
+*/
 
 
 void saida_pwm(float valor_em_percentagem)
 {
 
-  //int aux33;
-  //float factor33;
-  float factor44;
-  int aux44;
-  
+  int aux33;
+  float factor33;
+  //float factor44;
+  //int aux44;
 
-  factor44 = valor_em_percentagem * 1.0;
-  if (valor_em_percentagem > 99.9)
-    factor44 = 100.0;
-  aux44 = int(factor44) + 1;
-  if (valor_em_percentagem < 9.9)
-    aux44 = 0;
+  // 8 bits  2.55
+  // 9 bits  5.11
+  //10 bits 10.23
+  //11 bits 20.47
+  //12 bits 40.95 
+  //13 bits 81.91
+  //14 bits 163.83
+  //15 bits 327.67
+  factor33 = ( pow (2.0,  double(bits_pwm))/*-1*/) / 100.0;
+  aux33 = int(valor_em_percentagem * factor33);
+
+
+  //factor44 = valor_em_percentagem * 1.0;
+  if (valor_em_percentagem > 99.9) {
+    
+  //  factor44 = 100.0;
+    factor33 = 100.0;
+  }
+  //aux44 = int(factor44) + 1;
+  //if (valor_em_percentagem < 9.9)
+  //  aux44 = 0;
 
  
 
@@ -176,15 +233,22 @@ void saida_pwm(float valor_em_percentagem)
   if (valor_em_percentagem != pwm_anterior)
   {
   
-    Serial.print("factor44:");
-    Serial.println(factor44);
-    Serial.print("aux44:");
-    Serial.println(aux44);
+    Serial.print("factor33:");
+    Serial.println(factor33);
+    Serial.print("aux33:");
+    Serial.println(aux33);
+    //Serial.print("ledcwrite:");
+    //Serial.println(int(factor33 * 100.0));
 
-    portENTER_CRITICAL(&timerMux);
-    conta_fim = aux44;
-    portEXIT_CRITICAL(&timerMux);
+    //portENTER_CRITICAL(&timerMux);
+    //conta_fim = aux44;
+    //portEXIT_CRITICAL(&timerMux);
 
+    ledcWrite(canalpwm, aux33);
+    //ledcWrite(canalpwm, int(factor33 * 100.0));
+    //ledcDetachPin(pino_pwm);
+    //delayMicroseconds(500);
+    //ledcAttachPin(pino_pwm, canalpwm);
    
   }
 
@@ -255,9 +319,20 @@ String SendHTML(int indice,int valor){
   ptr +="<tr>\n<td><a class=\"button button-on\" href=\"/maisC\">Mais</a></td>\n";
   ptr +="<td><a class=\"button button-on\" href=\"/menosC\">Menos</a></td>\n";
   ptr +="<td><a class=\"button button-off\" href=\"/memorC\">Gravar</a></td></tr>\n";
-
-
   ptr +="</table>\n";
+  
+  ptr +="<br>\n";
+  ptr +="<font size=\"4\">Controlo remoto</font>";
+  ptr +="<table style=\"width:100%\">\n  <tr>\n    <th valign=\"middle\" colspan=\"2\"><font size=\"6\"><b>";
+  if (remote==false) ptr +="Desligado";
+  if (remote==true) ptr +="Ligado";
+  ptr +="</b></font></th> \n    <th>";
+  ptr +="<a class=\"button button-off\" href=\"/refresh\">Estado</a> </th>\n  </tr>\n";
+  ptr +="<tr>\n<td><a class=\"button button-on\" href=\"/ligarremote\">Ligar</a></td>\n";
+  ptr +="<td><a class=\"button button-on\" href=\"/desligarremote\">Desligar</a></td>\n";
+  ptr +="<td><a class=\"button button-off\" href=\"/memorremote\">Gravar</a></td></tr>\n";
+  ptr +="</table>\n";
+
 
   //ptr +=String("<h3>Version ")+String(VERSAO)+String(" Beta</h3>\n");
   //ptr +=String("<p><Corrente: ")+String(amperes)+String("A</p>");
@@ -303,6 +378,25 @@ void handle_menos_corrente() {
 
   servidor.send(200, "text/html", SendHTML(2,2)); 
 }
+
+
+void handle_ligar_remote() {
+  Serial.println("Handle ligar remote");
+
+  remote = true; 
+  
+  servidor.send(200, "text/html", SendHTML(4,1)); 
+}
+
+void handle_desligar_remote() {
+  Serial.println("Handle desligar remote");
+
+  remote = false; 
+  
+  servidor.send(200, "text/html", SendHTML(4,2)); 
+}
+
+
 
 
 void handle_corrente0() {
@@ -454,8 +548,26 @@ void handle_memo_corrente() {
   EEPROM.commit();
   
   servidor.send(200, "text/html", SendHTML(2,3)); 
-  wifi_count = wifi_ciclos;
+  
 }
+
+
+void handle_memo_remote() {
+  Serial.println("Handle Memo remote");
+  
+
+  if (remote)
+        EEPROM.write(3, 1);
+               else
+                  EEPROM.write(3, 0);
+
+                      EEPROM.commit();
+
+  
+  servidor.send(200, "text/html", SendHTML(4,3)); 
+  
+}
+
 
 void handle_refresh() {
   Serial.println("Handle Refresh");
@@ -467,6 +579,13 @@ void handle_refresh() {
 void handle_NotFound(){
   servidor.send(404, "text/plain", "Not found");
   wifi_count = wifi_ciclos;
+}
+
+
+void hard_restart() {
+  esp_task_wdt_init(1,true);
+  esp_task_wdt_add(NULL);
+  while(true);
 }
 
 
@@ -482,15 +601,15 @@ void setup()
   Serial.println("Init");
 
   pinMode(18, OUTPUT);
-  portENTER_CRITICAL(&timerMux);
-  conta_interrupt = 0;
-  conta_fim = 10;
-  portEXIT_CRITICAL(&timerMux);
+  //portENTER_CRITICAL(&timerMux);
+  //conta_interrupt = 0;
+  //conta_fim = 10;
+  //portEXIT_CRITICAL(&timerMux);
 
-  timerx1 = timerBegin(0, 80, true);
-  timerAttachInterrupt(timerx1, &onTimer, true);
-  timerAlarmWrite(timerx1, 10, true);
-  timerAlarmEnable(timerx1);
+  //timerx1 = timerBegin(0, 80, true);
+  //timerAttachInterrupt(timerx1, &onTimer, true);
+  //timerAlarmWrite(timerx1, 10, true);
+  //timerAlarmEnable(timerx1);
 
   //timerx2 = timerBegin(0, 80, true);
   //timerAttachInterrupt(timerx2, &onTimerDesliga, true);
@@ -512,10 +631,10 @@ void setup()
   digitalWrite(pino_rele, false);
 
   // configure PWM functionalitites
-  //ledcSetup(canalpwm, 1000, bits_pwm);
+  ledcSetup(canalpwm, 1000, bits_pwm);
 
   // attach the channel to the GPIO to be controlled
-  //ledcAttachPin(pino_pwm, canalpwm);
+  ledcAttachPin(pino_pwm, canalpwm);
 
   pinMode(pino_leitura_piloto, INPUT_PULLDOWN);
   digitalWrite(pino_leitura_piloto, false);
@@ -530,10 +649,10 @@ void setup()
   t[1].pt = 50;    //preset time
   t[2].pt = 100;   //preset time   100
   t[3].pt = 500;   //erro diodo
-  t[4].pt = 500;   //preset time
+  t[4].pt = 100;   //preset time
   t[5].pt = 50;    //touch rápido
   t[6].pt = 1000;  //touch confirmação
-  t[7].pt = 60000; //screensaver
+  t[7].pt = 120000; //screensaver
   t[8].pt = 1000;  //tempo duplo clique
   t[9].pt = 30000; //timeout menus
   t[10].pt = 2500; //timer relé
@@ -543,7 +662,14 @@ void setup()
   t[14].pt = 100;  //timer entrada pwm diodo
   t[15].pt = 1000; //timer arranque contadisplay
   t[16].pt = 1500; //timer para detectar falha curta de wifi
-  t[17].pt = 5000; //timer para detectar falha longa de wifi
+  t[17].pt = 30000; //timer para detectar falha longa de wifi
+  t[18].pt = 2000; //ciclo estado B -12V
+  t[19].pt = 2000; //estado 11
+  t[20].pt = 5000; //falha no estado 11, regressa ao 0
+  t[21].pt = 2000; //estado b1
+  t[22].pt = 2000; //estado b2
+  t[23].pt = 500; //tempo mínimo no estado 21
+  t[24].pt = 600000; //tempo ao fim do qual faz reset se não estiver a carregar e não receber comandos remotos
 
   EEPROM.begin(10);
 
@@ -584,7 +710,7 @@ void setup()
   servidor.on("/maisC", handle_mais_corrente);
   servidor.on("/menosC", handle_menos_corrente);
   servidor.on("/refresh", handle_refresh);
-  servidor.on("/memoC", handle_memo_corrente);
+  servidor.on("/memorC", handle_memo_corrente);
   servidor.on("/0", handle_corrente0);
   servidor.on("/6", handle_corrente6);
   servidor.on("/7", handle_corrente7);
@@ -613,6 +739,9 @@ void setup()
   servidor.on("/30", handle_corrente30);
   servidor.on("/31", handle_corrente31);
   servidor.on("/32", handle_corrente32);
+  servidor.on("/ligarremote", handle_ligar_remote);
+  servidor.on("/desligarremote", handle_desligar_remote);
+  servidor.on("/memorremote", handle_memo_remote);
 
 
 
@@ -694,166 +823,185 @@ void loop()
     leitura_piloto_max = leitura_piloto;
     leitura_piloto_min = leitura_piloto;
 
+
+    //Condição A sem nada ligado sem erro
+    if (leitura_piloto_max3 > MIN_PWM_A)    
+    {
+      condA = true;
+    }
+    else
+    {
+      condA = false;
+      
+    }
+    
+    //Condição B - VE ligado
+    if ((leitura_piloto_max3 > MIN_PWM_B) & (leitura_piloto_max3 < MIN_PWM_A))  
+    {
+      condB = true;
+    }
+    else
+    {
+      condB = false;
+      
+    }
+
+    //Condição C - VE pede carga
+    if ((leitura_piloto_max3 > MIN_PWM_C) & (leitura_piloto_max3 < MIN_PWM_B) )  
+    {
+      condC = true;
+    }
+    else
+    {
+      condC = false;
+      
+    }
+
+    //Condição D - Erro diodo
+
+    if ((leitura_piloto_min3 > MAX_PWM_DIODO) & (auxpwm !=100.0))
+    {
+      t[3].in = true;
+    }
+    else
+    {
+      t[3].in = false;
+    }
+
+    if (t[3].q == true)
+    {
+      condD = true;
+    }
+    else
+    {
+      condD = false;
+    }
+    
+    //Condição E - Erro geral
+    if ((leitura_piloto_max3 < MIN_PWM_C) & (auxpwm>0.0))
+    {
+      t[12].in = true;
+    }
+    else
+    {
+      t[12].in = false;
+    }
+
+    if (t[12].q == true)
+    {
+      condE = true;
+    }
+    else
+    {
+      condE  = false;
+    }
+
+
+
     //Estados
-    // A = 0
-    // B = 1
-    // C = 2
-    // Erro geral = 3
-    // Erro diodo = 4
+    // A = 0            Pronto
+    // B = 11,12 e 13   VE Ligado 
+    // C = 21           VE pede carga
+    // D = 31           erro diodo
+    // E = 41           erro geral
+    
 
-    //Estado A
-    if (leitura_piloto_max3 > MIN_PWM_A)
+    if ( ((estado==21) || (estado==13)) &&  (condA) )
     {
-      estado = 0;
+    estado = 0;
+
+    }
+
+    if (estado==0)
+    {
+      if (condB) estado = 11;
+      if (condC) estado = 21;
+      //if ((condD) & errodiodo_paracarga) estado = 31;
+      if (condE)  estado = 41;
+      auxpwm = 100.0;
+      digitalWrite(pino_rele, false);
       sprintf(linha1, "  Pronto  ");
+      t[21].in=false;
+      t[22].in=false;
+      if (t[17].q) t[24].in=true;
 
-      if (leitura_piloto_min3 < MAX_PWM_DIODO) erro_diodo = false;
-
+      if (t[24].q) 
+      {
+      hard_restart();
+      }
     }
 
-    /*
-    if ((!t[10].q) & (estado == 0) )
+    if (estado == 21)
     {
-      estado = 0;
+      t[23].in = true;
+      if (t[23].q)
+      {
+        if (condA) estado = 0;
+        if (condB) estado = 13;
+        if ((condD) & errodiodo_paracarga) estado = 31;
+        if (condE)  estado = 41;
+      }
+      auxpwm = float(amperes) / 0.6;
+      digitalWrite(pino_rele, true);
+      sprintf(linha1, "A carregar");
+    }
+    else
+      t[23].in = false;
+
+    if (estado==11)
+    {
+      auxpwm = 0.0;
+      digitalWrite(pino_rele, false);
       sprintf(linha1, "  Espere  ");
-    }
-    */
-
-    //Estado B
-    if ((leitura_piloto_max3 > MIN_PWM_B) & (leitura_piloto_max3 < MIN_PWM_A))
-    {
-      t[1].in = true;
-
-      if (t[1].q == true)
-      {
-        estado = 1;
-        sprintf(linha1, "VE Ligado ");
-
-        if ((leitura_piloto_min3 > MAX_PWM_DIODO) & (!teste_pwm_inibir_errodiodo))
-        {
-          t[14].in = true;
-          if (t[14].q)
-          {
-            sprintf(linha1, "Erro díodo");
-            erro_diodo = true;
-            Serial.println("erro diodo entrou na passagem para estado VE ligado");
-          }
-          else
-            erro_diodo = false;
-        }
-        else
-        {
-          t[14].in = false;
-        }
-      }
-    }
-    else t[1].in = false;
-
-    
-    //Estado C e D
-    if ((leitura_piloto_max3 > MIN_PWM_C) & (leitura_piloto_max3 < MIN_PWM_B) & (amperes != 0) & (!inibir_carga) /*& (t[10].q)*/)
-    {
-
-      t[2].in = true;
-
-      if (t[2].q == true)
-      {
-        if (leitura_piloto_min3 < MAX_PWM_DIODO)
-          estado = 2;
-        sprintf(linha1, "A verific.");
-        if ((leitura_piloto_min3 > MAX_PWM_DIODO) & (!teste_pwm_inibir_errodiodo) )
-        {
-          t[13].in = true;
-          if (t[13].q)
-          {
-            sprintf(linha1, "Erro díodo");
-            erro_diodo = true;
-
-            if (errodiodo_paracarga) estado = 4;
-            else estado = 2;
-
-            Serial.println("erro diodo entrou na passagem para estado carregar");
-          }
-          else  erro_diodo = false;
-          
-            
-        }
-        else {
-          t[13].in = false;
-         
-        }
-      }
-    }
-    else t[2].in = false;
-
-
-    //Estado erro Diodo
-    if (((estado == 1) | (estado == 2)) & (!teste_pwm_inibir_errodiodo))
-    {
-
-      if (leitura_piloto_min3 > MAX_PWM_DIODO)
-        t[3].in = true;
-      else
-        t[3].in = false;
-
-      if (t[3].q == true)
-      {
-        estado = 4;
-        //Serial.println("Erro diodo entrou");
-        sprintf(linha1, "Erro díodo");
-        erro_diodo = true;
-        Serial.println ("Erro diodo em VE ligado ou a carregar");
-      }
-      else
-      {
-        t[3].in = false;
-        erro_diodo = false;
-      }
-
-    }
-      /*
-    //Estado erro diodo
-
-    
-    if (estado == 4)
-    {
-      if (leitura_piloto_min3 > 1500)
-        t[3].in = true;
-      else
-        t[3].in = false;
-
-      if (t[3].q == true)
-      {
+      t[21].in = true;
       
-        sprintf(linha1, "Erro diodo");
-      }
-      //else
-      //{
-      //  if ((leitura_piloto_max3 > 1400) & (leitura_piloto_max3 < 3050) & (t[10].q) ) estado = 2;
-      //  if ((leitura_piloto_max3 > 3050) & (leitura_piloto_max3 < 3600) ) estado = 1;
-      //  if (leitura_piloto_max3 > 3600) estado = 0;
-        
-      //}
-      
+      if (t[21].q) estado = 12;
     }
-  */
 
-      //Estado erro Geral
-      if ((leitura_piloto_max3 < MIN_PWM_C) & (!teste_pwm_inibir_errodiodo) /*& (!(!t[10].q) & (estado==0))*/)
+    if (estado==12)
+    {
+      auxpwm = 100.0;
+      digitalWrite(pino_rele, false);
+      sprintf(linha1, "  Espere  ");
+      t[22].in = true;
+      if (t[22].q) estado = 13;
+    }
+
+    if (estado==13)
+    {
+      if (condA) estado = 0;
+      if (condC) estado = 21;
+      if ((condD) & errodiodo_paracarga) estado = 31;
+      if (condE)  estado = 41;
+      sprintf(linha1, "VE Ligado ");
+      auxpwm = float(amperes) / 0.6;
+      digitalWrite(pino_rele, false);
+
+      if (t[17].q) t[24].in=true; t[24].in=true;
+
+      if (t[24].q) 
       {
-        t[12].in = true;
-
-        if (t[12].q)
-        {
-
-          estado = 3;
-          sprintf(linha1, "Erro geral");
-        }
+      hard_restart();
       }
-      else
-      {
-        t[12].in = false;
-      }
+
+    }
+
+    if (estado==31)  //Erro diodo
+    {
+      if (condA & !condB & !condC) estado = 0;
+      sprintf(linha1, "Erro diodo");
+      auxpwm = 100.0;
+      digitalWrite(pino_rele, false);
+    }
+
+    if (estado==41)  //Erro geral, só é possível voltar ao zero se condição desaparecer
+    {
+      if (condA & !condE) estado = 0;
+      sprintf(linha1, "Erro geral");
+      auxpwm = 100.0;
+      digitalWrite(pino_rele, false);
+    }
+
 
       //barras estado
       janelamin = int((float(leitura_piloto_min3) - 700.0) / 7.0);
@@ -899,67 +1047,12 @@ void loop()
     // entre 1100 e 3000 -> Estado C
     // máximo abaixo de 1100 dá erro
 
-    //Saída relé
-    if ((estado == 2) | ((estado == 4) & !errodiodo_paracarga))
-    {
 
-      t[11].in = false;
-      t[4].in = true;
-      erro_diodo = false;
-
-      if (t[4].q)
-      {
-        //digitalWrite(pino_LED,false);
-        digitalWrite(pino_rele, true);
-        //t[10].in=false;
-        if (estado == 2)
-        {
-          sprintf(linha1, "A carregar");
-          if (leitura_piloto_min3 > MAX_PWM_DIODO) { 
-            erro_diodo = true;
-            if (pisca) sprintf(linha1, "Erro díodo");
-          }
-
-
-        }
-
-        if ((estado == 4) & (!teste_pwm_inibir_errodiodo))
-        {
-          sprintf(linha1, "Erro díodo");
-          erro_diodo = true;
-          Serial.println("Erro diodo com relé ligado");
-        }
-        
-      }
-    }
-    else
-    {
-      t[4].in = false;
-      t[11].in = true;
-      //digitalWrite(pino_LED,true);
-      if (t[11].q)
-      {
-        digitalWrite(pino_rele, false);
-        //t[10].in=true;
-        tempocarga = 0;
-      }
-    }
-
-    //Saida pwm regulacao EVSE
-    auxpwm = float(amperes) / 0.6;
-
-    if ((estado == 0))
-      auxpwm = 100.0;
-
-    if (t[2].q)
-      auxpwm = float(amperes) / 0.6;
 
     if (inibir_carga)
       auxpwm = 100.0;
     if (amperes == 0)
       auxpwm = 100.0;
-
-    //if ( (!t[10].q) & (estado==0) ) auxpwm = 0.0;
 
     //se testes piloto
 
@@ -970,8 +1063,11 @@ void loop()
     if (teste_piloto == 3)
       auxpwm = 0.0; //-12V
 
+
+    
     saida_pwm(auxpwm);
 
+        
     if ((teste_piloto != 0) | (inibir_carga) | (amperes == 0))
     {
       teste_pwm_inibir_errodiodo = true;
@@ -980,7 +1076,8 @@ void loop()
     {
       teste_pwm_inibir_errodiodo = false;
     }
-
+    
+    
 
     //Verificar falha de comunicação em modo remote ********************************
 
@@ -990,7 +1087,7 @@ void loop()
       if (t[16].q) amperes = 6;
 
 
-      //se não receber nada durante 5s desliga - t17
+      //se não receber nada durante ys desliga - t17
       if (wifi_count==0) t[17].in=true; else t[17].in=false;
       if (t[17].q) amperes = 0;
     }
@@ -1007,42 +1104,54 @@ void loop()
       display.setFont(Monospaced_plain_20); //fonte w12xh24
       display.setTextAlignment(TEXT_ALIGN_LEFT);
 
+      wifi_count = wifi_count -1;
+      if (wifi_count < 0) wifi_count = 0;
+
       if (!screensaver)
       {
         display.drawString(4, 0, String(linha1));
 
+        
         if (digitalRead(pino_rele))
           display.drawXbm(63, 23, fechado2_width, fechado2_height, fechado2_bits);
         else
           display.drawXbm(63, 23, aberto2_width, aberto2_height, aberto2_bits);
+        
 
-        if ((estado != 0) & (estado != 3))
+        //Simbolo carro
+        if (condB || condC)
           display.drawXbm(30, 23, carro_width, carro_height, carro_bits);
-        if (((estado == 3) | (erro_diodo)) & piscar)
+        
+        // Simbolo de erro
+        if (((estado == 31) | (estado==41)) & piscar)
           display.drawXbm(9, 23, perigo_width, perigo_height, perigo_bits);
 
+        
 
+        
         if (wifi_count > wifi_menor)
           display.drawXbm(90, 28, wifi_width, wifi_height, wifi_bits);
         
-        wifi_count = wifi_count -1;
-        if (wifi_count < 0) wifi_count = 0;
+    
 
         if (remote)
           display.drawXbm(110, 24, remote_width, remote_height, remote_bits);
-
+        
 
         //sprintf(buffer,"%ds",tempocarga);
         //display.drawString(4, 22, String(buffer));
         //display.drawString(4, 22, String(leitura_piloto));
 
         //                      x   y    w   h  %
-        display.drawProgressBar(0, 44, 34, 8, janelamin);
-        display.drawProgressBar(0, 53, 34, 8, janelamax);
+        //display.drawProgressBar(0, 44, 34, 8, janelamin);
+        //display.drawProgressBar(0, 53, 34, 8, janelamax);
 
-        //display.drawString(64, 22, String(leitura_piloto_min3));
-        //display.drawString(4, 44, String(leitura_piloto_max3));
+        //display.drawString(64, 22, String(leitura_piloto_max3));
+        //display.drawString(4, 22, String(leitura_piloto_min3));
         //display.drawString(64, 44, String(estado));
+
+        //display.drawString(4, 0, String(auxpwm));
+        
       }
       else //caso esteja com screen saver ligado
       {
@@ -1054,7 +1163,7 @@ void loop()
         display.setFont(Monospaced_plain_32); //fonte w19xh38
         display.setTextAlignment(TEXT_ALIGN_LEFT);
 
-        if ((estado != 2) & (luzes_ss))
+        if ((estado != 21) & (luzes_ss))
         {
           if (((millis() % 3000) >= 0) & ((millis() % 3000) <= 25))
           {
@@ -1065,12 +1174,12 @@ void loop()
           {
             sprintf(buffer, "%2dA", amperes);
             display.drawString(64, 12, String(buffer));
-            if ((estado != 0) & (estado != 3)) display.drawXbm(10, 23, carro_width, carro_height, carro_bits);
+            if ((estado != 0) /*& (estado != 3)*/) display.drawXbm(10, 23, carro_width, carro_height, carro_bits);
             
           }
         }
 
-        if ((estado == 2) & (luzes_ss))
+        if ((estado == 21) & (luzes_ss))
         {
           if (((millis() % 1000) >= 0) & ((millis() % 1000) <= 25))
           {
