@@ -35,7 +35,7 @@ WebServer servidor(80);
 
 //DEFINES
 
-#define VERSAO "0.2.6"
+#define VERSAO "0.2.7"
 
 #define pino_leitura_piloto 34 //34 por causa do wifi
 #define pino_pwm 18
@@ -652,7 +652,7 @@ void setup()
   t[4].pt = 100;   //preset time
   t[5].pt = 50;    //touch rápido
   t[6].pt = 1000;  //touch confirmação
-  t[7].pt = 120000; //screensaver
+  t[7].pt = 300000; //screensaver
   t[8].pt = 1000;  //tempo duplo clique
   t[9].pt = 30000; //timeout menus
   t[10].pt = 2500; //timer relé
@@ -662,7 +662,7 @@ void setup()
   t[14].pt = 100;  //timer entrada pwm diodo
   t[15].pt = 1000; //timer arranque contadisplay
   t[16].pt = 1500; //timer para detectar falha curta de wifi
-  t[17].pt = 30000; //timer para detectar falha longa de wifi
+  t[17].pt = 60000; //timer para detectar falha longa de wifi
   t[18].pt = 2000; //ciclo estado B -12V
   t[19].pt = 2000; //estado 11
   t[20].pt = 5000; //falha no estado 11, regressa ao 0
